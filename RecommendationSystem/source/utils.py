@@ -15,7 +15,7 @@ class UserCF(object):
                 raise Exception("%s is not in columns." % col)
         self.user_name = user
         self.item_name = item
-        self.df = df_user2item[[user, item]]
+        self.df = df_user2item[[user, item]].astype(int)
         self.users = self.df[user].unique()
         self.items = self.df[item].unique()
         # 基于topK相似user推荐topN的item
@@ -61,7 +61,8 @@ class UserCF(object):
     def _user2user_sim(self):
         """user间相似度"""
         for user_a, user_b in tqdm(combinations(self.users, 2)):
-            self.user2user_sim[user_a][user_b] = self.user2user_sim[user_b][user_a] = self._jaccard(user_a, user_b)
+            # 注意这里,pandas很容易忽略的一个引用问题
+            self.user2user_sim.loc[user_a, user_b] = self.user2user_sim.loc[user_b,user_a] = self._jaccard(user_a, user_b)
 
     def _interest_user2item(self, user, item):
         """user-item兴趣度"""
@@ -70,7 +71,7 @@ class UserCF(object):
             return cache_value
 
         interest = 0
-        for other_user in self.item2user_n.loc[item, "user"]:
+        for other_user in self.item2user_n.loc[item, self.user_name]:
             interest += self.user2user_sim.loc[user, other_user]
         self.interest_cache[(user, item)] = interest
         return interest
