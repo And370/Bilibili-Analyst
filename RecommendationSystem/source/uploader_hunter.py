@@ -28,7 +28,7 @@ class Follows(object):
         self.seeds = seeds
 
         self.csv_path = csv_path
-        self.raw_data = pd.read_csv(csv_path, encoding="utf_8_sig") if os.path.exists(csv_path) else None
+        self.raw_data = pd.read_csv(csv_path, encoding="utf_8_sig",engine="python") if os.path.exists(csv_path) else None
 
         self.per_page = per_page
         self.order = [order] if order in ["desc", "asc"] else ["desc", "asc"]
@@ -56,10 +56,10 @@ class Follows(object):
         while page <= 5:
             # print(up_id, page)
             for order in self.order:
-                time.sleep(random.randint(5, 12) * 0.1)
+                time.sleep(random.randint(20, 35) * 0.1)
                 # 关注者api
                 api_url = "http://api.bilibili.com/x/relation/followings?vmid=%s&pn=%s&ps=%s&order=%s&jsonp=jsonp&callback=__jp5" % (
-                    up_id, page, self.per_page, order)
+                    int(up_id), page, self.per_page, order)
                 response = requests.get(api_url, headers=self.headers)
 
                 try:
@@ -72,6 +72,8 @@ class Follows(object):
                     print(e)
                     print(response.text)
                     # print(json.loads(response.text[6:-1]))
+                finally:
+                    response.close()
             page += 1
 
         return data
@@ -107,5 +109,5 @@ if __name__ == '__main__':
     path = "../data/user2up.csv"
     dt = pd.read_csv(path, encoding="utf_8_sig")
     seeds = set(dt["mid"].astype(int)) - set(dt["from"].astype(int))
-    follows = Follows(seeds, path, 20, "both")
+    follows = Follows(seeds, path, 20, "desc")
     follows.follow_tree(deep=3)
