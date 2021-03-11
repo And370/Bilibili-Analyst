@@ -6,7 +6,9 @@ import os
 import random
 import json
 import time
-import requests
+
+from requests import Session
+from requests.adapters import HTTPAdapter
 
 import pandas as pd
 
@@ -14,6 +16,12 @@ from ast import literal_eval
 from tqdm import tqdm
 
 pd.options.display.max_columns = None
+
+requests = Session()
+http_retries = HTTPAdapter(max_retries=3)
+https_retries = HTTPAdapter(max_retries=3)
+requests.mount('http://', http_retries)
+requests.mount('https://', https_retries)
 
 
 class Follows(object):
@@ -28,7 +36,8 @@ class Follows(object):
         self.seeds = seeds
 
         self.csv_path = csv_path
-        self.raw_data = pd.read_csv(csv_path, encoding="utf_8_sig",engine="python") if os.path.exists(csv_path) else None
+        self.raw_data = pd.read_csv(csv_path, encoding="utf_8_sig", engine="python") if os.path.exists(
+            csv_path) else None
 
         self.per_page = per_page
         self.order = [order] if order in ["desc", "asc"] else ["desc", "asc"]
@@ -50,31 +59,35 @@ class Follows(object):
     # 获取单个UP主的关注对象
     def follows(self, up_id):
         data = []
-        page = 1
+
         self.headers["referer"] = 'https://space.bilibili.com/%s/fans/follow' % up_id
         # B站默认限制查看前100个关注者
-        while page <= 5:
-            # print(up_id, page)
-            for order in self.order:
+        for order in self.order:
+            page = 1
+            while page <= 5:
+                # print(up_id, page)
                 time.sleep(random.randint(20, 35) * 0.1)
                 # 关注者api
                 api_url = "http://api.bilibili.com/x/relation/followings?vmid=%s&pn=%s&ps=%s&order=%s&jsonp=jsonp&callback=__jp5" % (
                     int(up_id), page, self.per_page, order)
-                response = requests.get(api_url, headers=self.headers)
 
                 try:
+                    response = requests.get(api_url, headers=self.headers, timeout=5)
+
                     # 关注者
                     follows = json.loads(response.text[6:-1])["data"]["list"]
                     if not follows:
-                        continue
+                        return data
                     data.extend(follows)
                 except Exception as e:
+                    if response.status_code != 200:
+                        time.sleep(random.randint(1800, 3600))
                     print(e)
                     print(response.text)
                     # print(json.loads(response.text[6:-1]))
                 finally:
                     response.close()
-            page += 1
+                page += 1
 
         return data
 
@@ -108,6 +121,6 @@ class Follows(object):
 if __name__ == '__main__':
     path = "../data/user2up.csv"
     dt = pd.read_csv(path, encoding="utf_8_sig")
-    seeds = set(dt["mid"].astype(int)) - set(dt["from"].astype(int))
-    follows = Follows(seeds, path, 20, "desc")
+    seeds = set(dt["mid"][:].astype(int)) - set(dt["from"].astype(int))
+    follows = Follows(seeds, path, 50, "desc")
     follows.follow_tree(deep=3)
